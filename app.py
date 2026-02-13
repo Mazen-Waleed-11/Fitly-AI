@@ -2,9 +2,30 @@ import streamlit as st
 import pandas as pd
 import joblib
 import os
+import subprocess
+import sys
 
 # --- 1. CONFIG & ASSETS ---
-st.set_page_config(page_title="StyleFit AI Pro", layout="wide")
+# Change page_icon to your logo file if you want it to appear in the browser tab too!
+st.set_page_config(page_title="Fitly-AI Pro", layout="wide", page_icon="🎯")
+
+# --- 2. AUTO-TRAIN LOGIC ---
+# This ensures the app works on Streamlit Cloud even without the .pkl files
+def verify_models():
+    required_files = ['scaler.pkl', 'pants_model.pkl', 'model_stats.pkl']
+    missing = [f for f in required_files if not os.path.exists(f)]
+    
+    if missing:
+        st.info("🚀 First-time setup: Training AI models on the server...")
+        try:
+            # Uses sys.executable to ensure it uses the cloud's python environment
+            subprocess.run([sys.executable, "train_models.py"], check=True)
+            st.success("✅ Models ready!")
+        except Exception as e:
+            st.error(f"❌ Training failed: {e}")
+            st.stop()
+
+verify_models()
 
 @st.cache_resource
 def load_assets():
@@ -18,11 +39,11 @@ def load_assets():
 
 try:
     scaler, le, stats, p_model, p_scaler, p_le = load_assets()
-except:
-    st.error("⚠️ Data files not found. Run 'train_models.py' first.")
+except Exception as e:
+    st.error("⚠️ Data files not found. Check if 'train_models.py' ran correctly.")
     st.stop()
 
-# --- 2. NUTRITION LOGIC ---
+# --- 3. NUTRITION LOGIC ---
 def get_nutrition_plan(bmi):
     if bmi < 18.5:
         return {"title": "Bulking Plan", "m1": "Meal 1: 3 Eggs, Toast, Avocado", "m2": "Meal 2: 150g Salmon, 200g Potato", "m3": "Meal 3: 200g Yogurt, Nuts"}
@@ -33,7 +54,7 @@ def get_nutrition_plan(bmi):
     else:
         return {"title": "Reset Plan", "m1": "Meal 1: 2 Boiled Eggs, Cucumber", "m2": "Meal 2: 200g Chicken, Large Salad", "m3": "Meal 3: 150g Baked Fish"}
 
-# --- 3. DYNAMIC STYLING ---
+# --- 4. DYNAMIC STYLING (Glassmorphism) ---
 st.markdown("""
     <style>
     .stApp {
@@ -50,38 +71,45 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. SIDEBAR NAVIGATION & EXERCISES ---
-st.sidebar.title("🎵 Boutique Radio")
-music_file = "the-fashion-music-409865.mp3"
-if os.path.exists(music_file):
-    st.sidebar.audio(music_file, format="audio/mp3")
+# --- 5. SIDEBAR NAVIGATION & LOGO ---
+with st.sidebar:
+    # --- LOGO SECTION ---
+    # REPLACE "your_logo_filename.png" WITH YOUR IMAGE NAME
+    logo_path = "fitly_logo.png" 
+    if os.path.exists(logo_path):
+        st.image(logo_path, use_container_width=True)
+    else:
+        st.title("🎯 Fitly-AI")
+    
+    st.divider()
+    st.subheader("🎵 Boutique Radio")
+    music_file = "the-fashion-music-409865.mp3"
+    if os.path.exists(music_file):
+        st.audio(music_file, format="audio/mp3")
 
-st.sidebar.divider()
-st.sidebar.subheader("🚀 Navigation")
-app_mode = st.sidebar.radio("Go to:", ["🎯 Shirt Predictor", "👖 Pants Predictor", "📊 Analytics"])
+    st.divider()
+    st.subheader("🚀 Navigation")
+    app_mode = st.radio("Go to:", ["🎯 Shirt Predictor", "👖 Pants Predictor", "📊 Analytics"])
 
-st.sidebar.divider()
-
-# AUTOMATIC EXERCISE LOGIC (3 Exercises Each)
+# --- SIDEBAR EXERCISES (Dynamic based on mode) ---
 if app_mode == "🎯 Shirt Predictor":
     st.sidebar.subheader("💪 Upper Body Exercises")
-    st.sidebar.write("**1. V-Lat Pull down**")
-    if os.path.exists("V-bar-Lat-Pulldown.gif"): st.sidebar.image("V-bar-Lat-Pulldown.gif")
-    st.sidebar.write("**2. Seated Bench Press**")
-    if os.path.exists("Seated-Bench-Press.gif"): st.sidebar.image("Seated-Bench-Press.gif")
-    st.sidebar.write("**3. Arm Curl Machine**")
-    if os.path.exists("ARM_CURL_MC.gif"): st.sidebar.image("ARM_CURL_MC.gif")
-
+    exercises = [("V-Lat Pull down", "V-bar-Lat-Pulldown.gif"), 
+                 ("Seated Bench Press", "Seated-Bench-Press.gif"), 
+                 ("Arm Curl Machine", "ARM_CURL_MC.gif")]
 elif app_mode == "👖 Pants Predictor":
     st.sidebar.subheader("💪 Lower Body Exercises")
-    st.sidebar.write("**1. Hack Squat**")
-    if os.path.exists("HACK_SQT.gif"): st.sidebar.image("HACK_SQT.gif")
-    st.sidebar.write("**2. Leg Extension**")
-    if os.path.exists("LEG-EXTENSION.gif"): st.sidebar.image("LEG-EXTENSION.gif")
-    st.sidebar.write("**3. Standing Calf Raise**")
-    if os.path.exists("STD_CALF_RAISE.gif"): st.sidebar.image("STD_CALF_RAISE.gif")
+    exercises = [("Hack Squat", "HACK_SQT.gif"), 
+                 ("Leg Extension", "LEG-EXTENSION.gif"), 
+                 ("Standing Calf Raise", "STD_CALF_RAISE.gif")]
+else:
+    exercises = []
 
-# --- 5. MAIN CONTENT AREA ---
+for name, file in exercises:
+    st.sidebar.write(f"**{name}**")
+    if os.path.exists(file): st.sidebar.image(file)
+
+# --- 6. MAIN CONTENT AREA ---
 
 if app_mode == "🎯 Shirt Predictor":
     st.title("Upper Body Size Predictor")
@@ -89,7 +117,7 @@ if app_mode == "🎯 Shirt Predictor":
     with col1:
         item = st.selectbox("Clothing Item", ["T-Shirt", "Sweater", "Jacket"])
         img_dict = {"T-Shirt": "t-shirt.jpg", "Sweater": "sweater.jpg", "Jacket": "jacket.jpg"}
-        if os.path.exists(img_dict[item]): st.image(img_dict[item], width=300)
+        if os.path.exists(img_dict.get(item, "")): st.image(img_dict[item], width=300)
         
         w = st.number_input("Weight (kg)", 30.0, 150.0, 70.0, key="sw")
         h = st.number_input("Height (cm)", 100.0, 220.0, 170.0, key="sh")
@@ -117,7 +145,7 @@ elif app_mode == "👖 Pants Predictor":
     with col1:
         p_item = st.selectbox("Pants Type", ["Jeans", "Cargo", "Melton Wool"])
         p_img_dict = {"Jeans": "Jeans.jpg", "Cargo": "Cargo.jpg", "Melton Wool": "Melton.jpg"}
-        if os.path.exists(p_img_dict[p_item]): st.image(p_img_dict[p_item], width=300)
+        if os.path.exists(p_img_dict.get(p_item, "")): st.image(p_img_dict[p_item], width=300)
             
         pw = st.number_input("Weight (kg)", 30.0, 150.0, 70.0, key="pw")
         ph = st.number_input("Height (cm)", 100.0, 220.0, 170.0, key="ph")
@@ -138,18 +166,14 @@ elif app_mode == "👖 Pants Predictor":
 
 elif app_mode == "📊 Analytics":
     st.title("Project Technical Analytics")
-    
-    # 1. Performance Table
     st.subheader("🏆 Algorithm Performance Summary")
     acc_dict = {name.replace('_',' ').title(): data['Accuracy'] for name, data in stats.items()}
     acc_df = pd.DataFrame(list(acc_dict.items()), columns=['Algorithm', 'Accuracy'])
     st.table(acc_df.style.format({'Accuracy': '{:.2%}'}))
 
-    # 2. Accuracy Comparison Visual (The new chart)
     st.subheader("📈 Performance Visualization")
     st.bar_chart(acc_df.set_index('Algorithm'))
 
-    # 3. Correlation Heatmap
     st.divider()
     if os.path.exists("correlation_heatmap.png"):
-        st.image("correlation_heatmap.png", caption="Feature Correlation (Weight & BMI are strongest predictors)", width="stretch")
+        st.image("correlation_heatmap.png", caption="Feature Correlation (Weight & BMI are strongest predictors)")
